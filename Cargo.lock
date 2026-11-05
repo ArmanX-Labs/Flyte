@@ -2476,6 +2476,8 @@ dependencies = [
  "num-traits",
  "png 0.18.1",
  "tiff",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]
@@ -3107,6 +3109,7 @@ dependencies = [
  "grammers-client",
  "grammers-mtsender",
  "grammers-session",
+ "image 0.25.10",
  "libsql-rusqlite",
  "reqwest 0.13.5",
  "serde",
