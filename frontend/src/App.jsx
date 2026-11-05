@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cloud, Folder, File, FileText, FileImage, Trash2, Upload, Plus, ChevronLeft, LogOut } from 'lucide-react';
-import { listDirectory, createFolder, deleteItem, openFile, uploadPhysicalFile, getServerUrl } from './api';
+import { listDirectory, createFolder, deleteItem, openFile, uploadPhysicalFile, getServerUrl, parseApiResponse } from './api';
 import Login from './Login';
 import './App.css';
 
@@ -17,8 +17,8 @@ export default function App() {
     fetch(`${getServerUrl()}/api/auth/status`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => res.json())
-      .then(data => setIsAuthorized(data.authorized))
+      .then(parseApiResponse)
+      .then(data => setIsAuthorized(Boolean(data.authorized)))
       .catch(err => {
         console.error(err);
         setIsAuthorized(false);

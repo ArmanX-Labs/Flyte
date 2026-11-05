@@ -1,9 +1,42 @@
-const isTauri = window.__TAURI__ !== undefined;
-export const getServerUrl = () => localStorage.getItem('flyte_server_url') || "";
+export const isTauri = () => {
+  if (typeof window === 'undefined') return false;
+  return Boolean(
+    window.__TAURI__ ||
+    window.__TAURI_METADATA__ ||
+    window.location.protocol === 'tauri:' ||
+    window.location.hostname === 'tauri.localhost'
+  );
+};
+
+export const isCapacitor = () => {
+  if (typeof window === 'undefined') return false;
+  return Boolean(
+    window.Capacitor?.isNativePlatform?.() ||
+    window.Capacitor !== undefined ||
+    window.location.protocol === 'capacitor:' ||
+    (window.location.protocol === 'http:' && window.location.hostname === 'localhost' && !isTauri() && (!window.location.port || window.location.port === '80'))
+  );
+};
+
+export const getServerUrl = () => {
+  const custom = localStorage.getItem('flyte_server_url');
+  if (custom) return custom;
+
+  if (isTauri()) {
+    // In Tauri desktop, Axum server runs locally on port 3000
+    return 'http://127.0.0.1:3000';
+  }
+
+  // In standard browser visiting the web app (e.g. Docker), relative path works
+  return '';
+};
+
 export const setServerUrl = (url) => {
   if (url) {
+    url = url.trim();
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = 'https://' + url;
+      const isLocal = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(url) || url.startsWith('localhost');
+      url = (isLocal ? 'http://' : 'https://') + url;
     }
     url = url.replace(/\/+$/, '');
     localStorage.setItem('flyte_server_url', url);
@@ -11,25 +44,48 @@ export const setServerUrl = (url) => {
     localStorage.removeItem('flyte_server_url');
   }
 };
-const getToken = () => localStorage.getItem('flyte_token') || localStorage.getItem('mycloud_token') || "";
+
+export async function parseApiResponse(res) {
+  const text = await res.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (err) {
+    if (text.trim().startsWith('<') || text.includes('<!DOCTYPE') || text.includes('<!doctype')) {
+      const hint = isCapacitor()
+        ? 'Could not connect to Flyte backend. Please configure your Server URL below (e.g. http://192.168.1.x:3000 or your hosted server URL).'
+        : 'Could not connect to Flyte backend. Please make sure the Flyte server is running.';
+      throw new Error(hint);
+    }
+    throw new Error(text || `Invalid server response (${res.status})`);
+  }
+
+  if (!res.ok) {
+    const msg = data && (data.error || data.message || (typeof data === 'string' ? data : null));
+    throw new Error(msg || text || `Request failed with status ${res.status}`);
+  }
+
+  return data;
+}
+
+const getToken = () => localStorage.getItem('flyte_token') || localStorage.getItem('mycloud_token') || '';
 
 export async function listDirectory(path) {
   const token = getToken();
-  if (isTauri) {
+  if (isTauri()) {
     const { invoke } = window.__TAURI__.tauri;
     return await invoke('list_directory', { token, path });
   } else {
     const res = await fetch(`${getServerUrl()}/api/list?path=${encodeURIComponent(path)}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    if (!res.ok) throw new Error(await res.text());
-    return await res.json();
+    return await parseApiResponse(res);
   }
 }
 
 export async function createFolder(path) {
   const token = getToken();
-  if (isTauri) {
+  if (isTauri()) {
     const { invoke } = window.__TAURI__.tauri;
     return await invoke('create_folder', { token, path });
   } else {
@@ -41,13 +97,13 @@ export async function createFolder(path) {
       },
       body: JSON.stringify({ path })
     });
-    if (!res.ok) throw new Error(await res.text());
+    return await parseApiResponse(res);
   }
 }
 
 export async function deleteItem(path) {
   const token = getToken();
-  if (isTauri) {
+  if (isTauri()) {
     const { invoke } = window.__TAURI__.tauri;
     return await invoke('delete_item', { token, path });
   } else {
@@ -59,20 +115,22 @@ export async function deleteItem(path) {
       },
       body: JSON.stringify({ path })
     });
-    if (!res.ok) throw new Error(await res.text());
+    return await parseApiResponse(res);
   }
 }
 
 export async function openFile(id, name) {
   const token = getToken();
-  if (isTauri) {
+  if (isTauri()) {
     const { invoke } = window.__TAURI__.tauri;
     return await invoke('open_file', { token, id, name });
   } else {
     const res = await fetch(`${getServerUrl()}/api/download?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+      return await parseApiResponse(res);
+    }
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -85,7 +143,7 @@ export async function openFile(id, name) {
 
 export async function uploadPhysicalFile(sourcePath, fileObj, fileName, parentPath) {
   const token = getToken();
-  if (isTauri) {
+  if (isTauri()) {
     const { invoke } = window.__TAURI__.tauri;
     return await invoke('upload_physical_file', {
       token,
@@ -102,6 +160,6 @@ export async function uploadPhysicalFile(sourcePath, fileObj, fileName, parentPa
       headers: { 'Authorization': `Bearer ${token}` },
       body: formData
     });
-    if (!res.ok) throw new Error(await res.text());
+    return await parseApiResponse(res);
   }
 }
