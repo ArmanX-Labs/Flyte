@@ -9,7 +9,7 @@ pub fn get_data_dir() -> PathBuf {
     if let Ok(dir) = env::var("DATA_DIR") {
         PathBuf::from(dir)
     } else if let Some(base_data) = tauri::api::path::data_dir() {
-        base_data.join("com.mycloud.app")
+        base_data.join("com.flyte.app")
     } else {
         PathBuf::from("data")
     }

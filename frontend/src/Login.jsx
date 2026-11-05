@@ -22,6 +22,7 @@ const Login = ({ onLoginSuccess }) => {
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       if (data.token) {
+        localStorage.setItem('flyte_token', data.token);
         localStorage.setItem('mycloud_token', data.token);
         onLoginSuccess();
       } else {
@@ -48,6 +49,7 @@ const Login = ({ onLoginSuccess }) => {
       if (tokenOrNull === null) {
         setStep(3);
       } else {
+        localStorage.setItem('flyte_token', tokenOrNull);
         localStorage.setItem('mycloud_token', tokenOrNull);
         onLoginSuccess();
       }
@@ -69,6 +71,7 @@ const Login = ({ onLoginSuccess }) => {
       });
       if (!res.ok) throw new Error(await res.text());
       const token = await res.json();
+      localStorage.setItem('flyte_token', token);
       localStorage.setItem('mycloud_token', token);
       onLoginSuccess();
     } catch (err) {
@@ -80,7 +83,7 @@ const Login = ({ onLoginSuccess }) => {
   return (
     <div className="login-container">
       <div className="login-card">
-        <h2>MyCloud Login</h2>
+        <h2>Flyte Login</h2>
         <p>Connect your Telegram account to sync your files.</p>
         
         {error && <div className="error-msg">{error}</div>}

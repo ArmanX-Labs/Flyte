@@ -7,7 +7,7 @@
     "withGlobalTauri": true
   },
   "package": {
-    "productName": "MyCloud",
+    "productName": "Flyte",
     "version": "0.1.0"
   },
   "tauri": {
@@ -17,7 +17,7 @@
     "bundle": {
       "active": true,
       "targets": "all",
-      "identifier": "com.mycloud.app",
+      "identifier": "com.flyte.app",
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",
@@ -31,7 +31,7 @@
     },
     "windows": [
       {
-        "title": "MyCloud Desktop",
+        "title": "Flyte",
         "width": 1000,
         "height": 700,
         "resizable": true

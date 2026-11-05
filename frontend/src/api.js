@@ -1,5 +1,5 @@
 const isTauri = window.__TAURI__ !== undefined;
-const getToken = () => localStorage.getItem('mycloud_token') || "";
+const getToken = () => localStorage.getItem('flyte_token') || localStorage.getItem('mycloud_token') || "";
 
 export async function listDirectory(path) {
   const token = getToken();

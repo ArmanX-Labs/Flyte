@@ -101,7 +101,7 @@ async fn open_file(token: String, id: String, name: String, state: State<'_, Arc
     }
     
     // Copy to a temporary file with the correct extension
-    let temp_dir = std::env::temp_dir().join("mycloud_preview");
+    let temp_dir = std::env::temp_dir().join("flyte_preview");
     std::fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
     
     let temp_file_path = temp_dir.join(format!("{}_{}", id, name));

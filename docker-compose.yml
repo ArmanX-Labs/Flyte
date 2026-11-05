@@ -1,7 +1,7 @@
 services:
-  mycloud:
+  flyte:
     build: .
-    container_name: mycloud
+    container_name: flyte
     ports:
       - "${PORT:-3000}:3000"
     environment:
@@ -16,10 +16,10 @@ services:
       # and caches are preserved and stay accessible on the host machine.
       - ./data:/app/data
       # Alternatively, for isolated cloud hosting, you can switch to a named volume:
-      # - mycloud_data:/app/data
+      # - flyte_data:/app/data
     restart: unless-stopped
 
 # Uncomment if using a named volume instead of a bind mount:
 # volumes:
-#   mycloud_data:
-#     name: mycloud_data
+#   flyte_data:
+#     name: flyte_data

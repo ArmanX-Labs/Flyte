@@ -13,7 +13,7 @@ export default function App() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('mycloud_token') || "";
+    const token = localStorage.getItem('flyte_token') || localStorage.getItem('mycloud_token') || "";
     fetch('/api/auth/status', {
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -178,11 +178,11 @@ export default function App() {
     <div className="app-container">
       <div className="sidebar">
         <div className="logo">
-          <Cloud color="var(--accent)" /> MyCloud
+          <Cloud color="var(--accent)" /> Flyte
         </div>
         <div className="nav-item active"><Folder size={20} /> All Files</div>
         <div className="nav-item"><Trash2 size={20} /> Trash</div>
-        <div className="nav-item" style={{ marginTop: 'auto' }} onClick={() => { localStorage.removeItem('mycloud_token'); setIsAuthorized(false); }}><LogOut size={20} /> Log Out</div>
+        <div className="nav-item" style={{ marginTop: 'auto' }} onClick={() => { localStorage.removeItem('flyte_token'); localStorage.removeItem('mycloud_token'); setIsAuthorized(false); }}><LogOut size={20} /> Log Out</div>
       </div>
 
       <div className="main-content">
