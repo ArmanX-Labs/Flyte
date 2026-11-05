@@ -5,3 +5,5 @@
 *.sqlite*
 *.session*
 .DS_Store
+dist-apk/
+*.apk
