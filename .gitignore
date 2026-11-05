@@ -1,5 +1,7 @@
 /target
 /data
+.mycloud_cache
 /.env
-*.sqlite
-*.session
+*.sqlite*
+*.session*
+.DS_Store

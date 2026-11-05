@@ -40,7 +40,7 @@ impl SyncEngine {
         println!("  [SyncEngine] Uploading file '{}' to Telegram...", node.name);
         
         // Read the actual file bytes from the local disk cache
-        let cache_path = format!(".mycloud_cache/{}", node.id);
+        let cache_path = crate::config::get_cache_path(&node.id.to_string());
         let file_data = tokio::fs::read(&cache_path).await.map_err(|e| {
             format!("Failed to read local cache for {}: {}", node.name, e)
         })?;
@@ -52,6 +52,10 @@ impl SyncEngine {
     }
 
     pub async fn download_to_file(&self, remote_id: &str, dest_path: &str) -> Result<(), String> {
+        let dest = std::path::Path::new(dest_path);
+        if let Some(parent) = dest.parent() {
+            let _ = tokio::fs::create_dir_all(parent).await;
+        }
         self.telegram.download_to_file(remote_id, dest_path).await
     }
 }

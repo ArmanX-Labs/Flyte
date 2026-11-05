@@ -1,0 +1,11 @@
+target/
+data/
+.mycloud_cache/
+.git/
+.env
+frontend/node_modules/
+frontend/dist/
+*.sqlite*
+*.session*
+.DS_Store
+

@@ -5,16 +5,14 @@ mod sync;
 mod provider;
 mod server;
 mod session;
+pub mod config;
 
-use vfs::filesystem::FileSystem;
-use sync::engine::SyncEngine;
-use provider::telegram::TelegramProvider;
 use dotenvy::dotenv;
 use std::env;
 use std::sync::Arc;
 use tauri::State;
 use vfs::node::Node;
-use session::{SessionManager, UserSession};
+use session::SessionManager;
 
 pub struct AppState {
     pub sessions: SessionManager,
@@ -67,7 +65,7 @@ async fn upload_physical_file(token: String, source_path: String, file_name: Str
         fs.write(&vfs_path, &data)?;
         
         let id = fs.resolve_path(&vfs_path)?;
-        fs.db().get_node(&id).map_err(|e| e.to_string())?.unwrap()
+        fs.db().get_node(&id).map_err(|e| e.to_string())?.ok_or_else(|| "Node not found".to_string())?
     };
     
     // 3. Upload to Telegram
@@ -86,8 +84,8 @@ async fn upload_physical_file(token: String, source_path: String, file_name: Str
 async fn open_file(token: String, id: String, name: String, state: State<'_, Arc<AppState>>) -> Result<(), String> {
     let session = state.sessions.get_session(&token).await.ok_or("Not logged in")?;
     
-    let cache_path = format!("data/cache/{}", id);
-    if !std::path::Path::new(&cache_path).exists() {
+    let cache_path = crate::config::get_cache_path(&id);
+    if !cache_path.exists() {
         let node_uuid = uuid::Uuid::parse_str(&id).map_err(|e| e.to_string())?;
         
         let remote_id = {
@@ -98,7 +96,8 @@ async fn open_file(token: String, id: String, name: String, state: State<'_, Arc
         };
         
         println!("Downloading file {} from Telegram (ID: {})", name, remote_id);
-        session.sync_engine.download_to_file(&remote_id, &cache_path).await?;
+        let cache_path_str = cache_path.to_string_lossy().to_string();
+        session.sync_engine.download_to_file(&remote_id, &cache_path_str).await?;
     }
     
     // Copy to a temporary file with the correct extension
@@ -125,16 +124,26 @@ async fn open_file(token: String, id: String, name: String, state: State<'_, Arc
 fn main() {
     dotenv().ok();
 
-    let api_id: i32 = env::var("TELEGRAM_API_ID").unwrap_or_else(|_| "".to_string()).parse().unwrap_or(0);
-    let api_hash = env::var("TELEGRAM_API_HASH").unwrap_or_else(|_| "".to_string());
+    // Read credentials from environment/.env, or fallback to default client credentials
+    let api_id: i32 = env::var("TELEGRAM_API_ID")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .or_else(|| option_env!("DEFAULT_TELEGRAM_API_ID").and_then(|v| v.parse().ok()))
+        .unwrap_or(32346266);
+
+    let api_hash: String = env::var("TELEGRAM_API_HASH")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .or_else(|| option_env!("DEFAULT_TELEGRAM_API_HASH").map(String::from))
+        .unwrap_or_else(|| "6d60d23fdd12f5b55d74f970ef6f3687".to_string());
 
     if api_id == 0 || api_hash.is_empty() {
-        println!("ERROR: Please set TELEGRAM_API_ID and TELEGRAM_API_HASH in a .env file.");
+        eprintln!("ERROR: Please set TELEGRAM_API_ID and TELEGRAM_API_HASH.");
         return;
     }
 
-    std::fs::create_dir_all("data/cache").unwrap_or_else(|e| {
-        println!("Warning: Failed to create data directory: {}", e);
+    config::init_directories().unwrap_or_else(|e| {
+        println!("Warning: Failed to initialize data directories: {}", e);
     });
 
     let rt = tokio::runtime::Runtime::new().unwrap();

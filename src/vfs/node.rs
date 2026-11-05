@@ -22,12 +22,14 @@ pub struct Node{
     pub modified_at: DateTime<Utc>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProviderType {
     Telegram,
     // Add other providers here if needed
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct StorageObject {
     pub node_id: NodeId,
@@ -37,6 +39,7 @@ pub struct StorageObject {
     pub hash: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum LocalState {
     Cached,
@@ -44,6 +47,7 @@ pub enum LocalState {
     NotCached,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct LocalObject {
     pub node_id: NodeId,

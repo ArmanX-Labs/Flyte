@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use tokio::sync::Mutex as AsyncMutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::fs;
 use std::collections::HashMap;
@@ -43,7 +42,8 @@ pub struct SessionManager {
 
 impl SessionManager {
     pub fn new(api_id: i32, api_hash: String) -> Self {
-        let persisted = if let Ok(data) = fs::read_to_string("data/sessions.json") {
+        let sessions_json = crate::config::get_sessions_json_path();
+        let persisted = if let Ok(data) = fs::read_to_string(&sessions_json) {
             serde_json::from_str(&data).unwrap_or_default()
         } else {
             PersistedTokens::default()
@@ -61,7 +61,11 @@ impl SessionManager {
     async fn save_persisted(&self) {
         let lock = self.persisted.read().await;
         if let Ok(data) = serde_json::to_string_pretty(&*lock) {
-            let _ = fs::write("data/sessions.json", data);
+            let sessions_json = crate::config::get_sessions_json_path();
+            if let Some(parent) = sessions_json.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            let _ = fs::write(&sessions_json, data);
         }
     }
 
@@ -94,19 +98,21 @@ impl SessionManager {
         if let Some(phone) = phone {
             // Reconstruct session
             let mut provider = TelegramProvider::new(self.api_id, self.api_hash.clone());
-            let session_file = format!("data/session_{}.session", phone);
-            if provider.init(&session_file).await.is_ok() && provider.is_authorized().await.unwrap_or(false) {
-                let db_file = format!("data/db_{}.sqlite", phone);
-                let fs = FileSystem::new_with_db(&db_file).unwrap();
-                let sync_engine = SyncEngine::new(provider);
-                
-                let user_session = Arc::new(UserSession {
-                    fs: std::sync::Mutex::new(fs),
-                    sync_engine,
-                });
-                
-                self.sessions.write().await.insert(token.to_string(), user_session.clone());
-                return Some(user_session);
+            let session_file = crate::config::get_session_path(&phone);
+            let session_file_str = session_file.to_string_lossy().to_string();
+            if provider.init(&session_file_str).await.is_ok() && provider.is_authorized().await.unwrap_or(false) {
+                let db_file = crate::config::get_db_path(&phone);
+                if let Ok(fs) = FileSystem::new_with_db(&db_file) {
+                    let sync_engine = SyncEngine::new(provider);
+                    
+                    let user_session = Arc::new(UserSession {
+                        fs: std::sync::Mutex::new(fs),
+                        sync_engine,
+                    });
+                    
+                    self.sessions.write().await.insert(token.to_string(), user_session.clone());
+                    return Some(user_session);
+                }
             }
         }
         

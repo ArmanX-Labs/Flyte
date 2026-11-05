@@ -50,6 +50,8 @@ pub struct DownloadQuery {
 }
 
 pub async fn start_server(app_state: Arc<AppState>) {
+    let frontend_dist = crate::config::get_frontend_dist_dir();
+    let index_file = format!("{}/index.html", frontend_dist);
     let app = Router::new()
         .route("/api/list", get(api_list))
         .route("/api/create_folder", post(api_create_folder))
@@ -62,8 +64,8 @@ pub async fn start_server(app_state: Arc<AppState>) {
         .route("/api/auth/check_password", post(api_auth_check_password))
         // Serve the frontend build
         .fallback_service(
-            ServeDir::new("frontend/dist")
-                .fallback(ServeFile::new("frontend/dist/index.html"))
+            ServeDir::new(&frontend_dist)
+                .fallback(ServeFile::new(&index_file))
         )
         .with_state(app_state)
         .layer(CorsLayer::permissive());
@@ -133,7 +135,9 @@ async fn api_upload(State(state): State<Arc<AppState>>, headers: axum::http::Hea
         fs.write(&vfs_path, &file_data).map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
         let id = fs.resolve_path(&vfs_path).map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
-        fs.db().get_node(&id).unwrap().unwrap()
+        fs.db().get_node(&id)
+            .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .ok_or_else(|| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Node not found".to_string()))?
     };
 
     // Upload to Telegram
@@ -154,8 +158,8 @@ async fn api_download(State(state): State<Arc<AppState>>, headers: axum::http::H
     let token = extract_token(&headers)?;
     let session = state.sessions.get_session(&token).await.ok_or((axum::http::StatusCode::UNAUTHORIZED, "Invalid session".to_string()))?;
     
-    let cache_path = format!(".mycloud_cache/{}", query.id);
-    if !std::path::Path::new(&cache_path).exists() {
+    let cache_path = crate::config::get_cache_path(&query.id);
+    if !cache_path.exists() {
         let node_uuid = uuid::Uuid::parse_str(&query.id).map_err(|e| (axum::http::StatusCode::BAD_REQUEST, e.to_string()))?;
         
         let remote_id = {
@@ -165,8 +169,8 @@ async fn api_download(State(state): State<Arc<AppState>>, headers: axum::http::H
                 .ok_or_else(|| (axum::http::StatusCode::NOT_FOUND, "File not synced".to_string()))?
         };
         
-        let _ = std::fs::create_dir_all(".mycloud_cache");
-        session.sync_engine.download_to_file(&remote_id, &cache_path).await.map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        let cache_path_str = cache_path.to_string_lossy().to_string();
+        session.sync_engine.download_to_file(&remote_id, &cache_path_str).await.map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
     }
     
     let data = tokio::fs::read(&cache_path).await.map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -202,12 +206,13 @@ async fn api_auth_status(State(state): State<Arc<AppState>>, headers: axum::http
 
 async fn api_auth_send_code(State(state): State<Arc<AppState>>, Json(req): Json<AuthPhoneRequest>) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
     let mut provider = TelegramProvider::new(state.api_id, state.api_hash.clone());
-    let session_file = format!("data/session_{}.session", req.phone);
-    provider.init(&session_file).await.map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let session_file = crate::config::get_session_path(&req.phone);
+    let session_file_str = session_file.to_string_lossy().to_string();
+    provider.init(&session_file_str).await.map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     if provider.is_authorized().await.unwrap_or(false) {
-        let db_file = format!("data/db_{}.sqlite", req.phone);
-        let fs = FileSystem::new_with_db(&db_file).unwrap();
+        let db_file = crate::config::get_db_path(&req.phone);
+        let fs = FileSystem::new_with_db(&db_file).map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
         let sync_engine = SyncEngine::new(provider);
         
         let user_session = Arc::new(crate::session::UserSession {
@@ -249,8 +254,8 @@ async fn api_auth_sign_in(State(state): State<Arc<AppState>>, Json(req): Json<Au
             // Successfully logged in!
             
             // Create UserSession
-            let db_file = format!("data/db_{}.sqlite", req.phone);
-            let fs = FileSystem::new_with_db(&db_file).unwrap();
+            let db_file = crate::config::get_db_path(&req.phone);
+            let fs = FileSystem::new_with_db(&db_file).map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
             let sync_engine = SyncEngine::new(auth_state.provider);
             
             let user_session = Arc::new(crate::session::UserSession {
@@ -274,8 +279,8 @@ async fn api_auth_check_password(State(state): State<Arc<AppState>>, Json(req): 
     auth_state.provider.check_password(token, &req.password).await.map_err(|e| (axum::http::StatusCode::BAD_REQUEST, e))?;
             
     // Create UserSession
-    let db_file = format!("data/db_{}.sqlite", req.phone);
-    let fs = FileSystem::new_with_db(&db_file).unwrap();
+    let db_file = crate::config::get_db_path(&req.phone);
+    let fs = FileSystem::new_with_db(&db_file).map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
     let sync_engine = SyncEngine::new(auth_state.provider);
     
     let user_session = Arc::new(crate::session::UserSession {

@@ -1,4 +1,5 @@
 use rusqlite::{Connection, Result as RusqliteResult, params, OptionalExtension};
+use std::path::Path;
 use super::node::{Node, NodeId, NodeType};
 
 pub struct MetadataDb {
@@ -6,7 +7,7 @@ pub struct MetadataDb {
 }
 
 impl MetadataDb {
-    pub fn new(db_path: &str) -> RusqliteResult<Self> {
+    pub fn new(db_path: impl AsRef<Path>) -> RusqliteResult<Self> {
         let conn = Connection::open(db_path)?;
         let mut db = Self { conn };
         db.init_schema()?;
@@ -21,6 +22,14 @@ impl MetadataDb {
     }
 
     fn init_schema(&mut self) -> RusqliteResult<()> {
+        // SQLite pragmas for production performance, concurrency, and reliability
+        let _ = self.conn.execute_batch(
+            "PRAGMA journal_mode = WAL;
+             PRAGMA synchronous = NORMAL;
+             PRAGMA foreign_keys = ON;
+             PRAGMA busy_timeout = 5000;"
+        );
+
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS nodes (
                 id TEXT PRIMARY KEY,

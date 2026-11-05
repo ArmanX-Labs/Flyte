@@ -18,7 +18,7 @@ impl FileSystem {
         Self::init_with_db(db)
     }
 
-    pub fn new_with_db(db_path: &str) -> Result<Self, String> {
+    pub fn new_with_db(db_path: impl AsRef<std::path::Path>) -> Result<Self, String> {
         let db = MetadataDb::new(db_path).map_err(|e| e.to_string())?;
         Self::init_with_db(db)
     }
@@ -282,16 +282,19 @@ impl FileSystem {
         use std::fs;
 
         let node_id = self.resolve_path(path)?;
-        let mut node = self.db.get_node(&node_id).map_err(|e| e.to_string())?.unwrap();
+        let mut node = self.db.get_node(&node_id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "Node not found".to_string())?;
         
         if node.node_type != NodeType::File {
             return Err("Not a file".to_string());
         }
 
         // Write to local cache
-        let cache_dir = ".mycloud_cache";
-        fs::create_dir_all(cache_dir).map_err(|e| e.to_string())?;
-        let cache_path = format!("{}/{}", cache_dir, node.id);
+        let cache_path = crate::config::get_cache_path(&node.id.to_string());
+        if let Some(parent) = cache_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
         fs::write(&cache_path, data).map_err(|e| e.to_string())?;
 
         // Update metadata

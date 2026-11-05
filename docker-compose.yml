@@ -1,0 +1,25 @@
+services:
+  mycloud:
+    build: .
+    container_name: mycloud
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - SERVER_ONLY=1
+      - PORT=3000
+      - DATA_DIR=/app/data
+      - FRONTEND_DIST=/app/frontend/dist
+      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
+      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
+    volumes:
+      # Mounts the local data directory so all SQLite databases, Telegram sessions,
+      # and caches are preserved and stay accessible on the host machine.
+      - ./data:/app/data
+      # Alternatively, for isolated cloud hosting, you can switch to a named volume:
+      # - mycloud_data:/app/data
+    restart: unless-stopped
+
+# Uncomment if using a named volume instead of a bind mount:
+# volumes:
+#   mycloud_data:
+#     name: mycloud_data

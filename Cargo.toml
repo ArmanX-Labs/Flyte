@@ -21,4 +21,8 @@ tower-http = { version = "0.7.1", features = ["cors", "fs"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [build-dependencies]
-tauri-build = "1.5"
+tauri-build = { version = "1.5", features = [] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
