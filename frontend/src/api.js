@@ -68,6 +68,65 @@ export async function parseApiResponse(res) {
   return data;
 }
 
+export async function sendAuthCode(phone) {
+  if (isTauri()) {
+    const { invoke } = window.__TAURI__.tauri;
+    return await invoke('auth_send_code', { phone });
+  } else {
+    const server = getServerUrl();
+    const res = await fetch(`${server}/api/auth/send_code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone })
+    });
+    return await parseApiResponse(res);
+  }
+}
+
+export async function signIn(phone, code) {
+  if (isTauri()) {
+    const { invoke } = window.__TAURI__.tauri;
+    return await invoke('auth_sign_in', { phone, code });
+  } else {
+    const server = getServerUrl();
+    const res = await fetch(`${server}/api/auth/sign_in`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, code })
+    });
+    return await parseApiResponse(res);
+  }
+}
+
+export async function checkPassword(phone, password) {
+  if (isTauri()) {
+    const { invoke } = window.__TAURI__.tauri;
+    return await invoke('auth_check_password', { phone, password });
+  } else {
+    const server = getServerUrl();
+    const res = await fetch(`${server}/api/auth/check_password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, password })
+    });
+    return await parseApiResponse(res);
+  }
+}
+
+export async function checkAuthStatus(token) {
+  if (isTauri()) {
+    const { invoke } = window.__TAURI__.tauri;
+    return await invoke('auth_status', { token });
+  } else {
+    const server = getServerUrl();
+    const res = await fetch(`${server}/api/auth/status`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await parseApiResponse(res);
+    return Boolean(data.authorized);
+  }
+}
+
 const getToken = () => localStorage.getItem('flyte_token') || localStorage.getItem('mycloud_token') || '';
 
 export async function listDirectory(path) {

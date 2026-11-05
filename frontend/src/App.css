@@ -242,3 +242,67 @@
     opacity: 0.8;
   }
 }
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.modal-card {
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-lg, 12px);
+  padding: 24px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+}
+
+.modal-card h3 {
+  margin: 0 0 16px 0;
+  font-size: 1.2rem;
+  color: var(--text-primary, #fff);
+  font-weight: 600;
+}
+
+.modal-card input {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-sm, 6px);
+  color: #fff;
+  font-size: 15px;
+  box-sizing: border-box;
+  outline: none;
+  margin-bottom: 20px;
+}
+
+.modal-card input:focus {
+  border-color: var(--accent, #3b82f6);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn-danger {
+  background: #ef4444 !important;
+  color: #fff !important;
+}
+
+.btn-danger:hover {
+  background: #dc2626 !important;
+}

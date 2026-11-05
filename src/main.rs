@@ -13,6 +13,9 @@ use std::sync::Arc;
 use tauri::State;
 use vfs::node::Node;
 use session::SessionManager;
+use provider::telegram::TelegramProvider;
+use vfs::filesystem::FileSystem;
+use sync::engine::SyncEngine;
 
 pub struct AppState {
     pub sessions: SessionManager,
@@ -21,25 +24,115 @@ pub struct AppState {
 }
 
 #[tauri::command]
-fn list_directory(token: String, path: String, state: State<'_, Arc<AppState>>) -> Result<Vec<Node>, String> {
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let session = rt.block_on(async { state.sessions.get_session(&token).await }).ok_or("Not logged in")?;
+async fn auth_status(token: String, state: State<'_, Arc<AppState>>) -> Result<bool, String> {
+    Ok(state.sessions.get_session(&token).await.is_some())
+}
+
+#[tauri::command]
+async fn auth_send_code(phone: String, state: State<'_, Arc<AppState>>) -> Result<serde_json::Value, String> {
+    let mut provider = TelegramProvider::new(state.api_id, state.api_hash.clone());
+    let session_file = crate::config::get_session_path(&phone);
+    let session_file_str = session_file.to_string_lossy().to_string();
+    provider.init(&session_file_str).await.map_err(|e| e.to_string())?;
+
+    if provider.is_authorized().await.unwrap_or(false) {
+        let db_file = crate::config::get_db_path(&phone);
+        let fs = FileSystem::new_with_db(&db_file).map_err(|e| e.to_string())?;
+        let sync_engine = SyncEngine::new(provider);
+        
+        let user_session = Arc::new(crate::session::UserSession {
+            fs: std::sync::Mutex::new(fs),
+            sync_engine,
+        });
+        
+        let session_token = uuid::Uuid::new_v4().to_string();
+        state.sessions.add_session(phone.clone(), session_token.clone(), user_session).await;
+        
+        return Ok(serde_json::json!({ "token": session_token }));
+    }
+
+    let token = provider.request_login_code(&phone).await.map_err(|e| e.to_string())?;
+    
+    let auth_state = crate::session::AuthState {
+        login_token: Some(token),
+        password_token: None,
+        provider,
+        phone: phone.clone(),
+    };
+    
+    state.sessions.save_auth(phone, auth_state).await;
+    Ok(serde_json::json!({ "requires_code": true }))
+}
+
+#[tauri::command]
+async fn auth_sign_in(phone: String, code: String, state: State<'_, Arc<AppState>>) -> Result<Option<String>, String> {
+    let mut auth_state = state.sessions.get_auth(&phone).await.ok_or_else(|| "No login session".to_string())?;
+    let token = auth_state.login_token.take().ok_or_else(|| "No login session started".to_string())?;
+    
+    match auth_state.provider.sign_in(&token, &code).await {
+        Ok(Some(password_token)) => {
+            auth_state.password_token = Some(password_token);
+            state.sessions.save_auth(phone, auth_state).await;
+            Ok(None) // Needs password
+        }
+        Ok(None) => {
+            let db_file = crate::config::get_db_path(&phone);
+            let fs = FileSystem::new_with_db(&db_file).map_err(|e| e.to_string())?;
+            let sync_engine = SyncEngine::new(auth_state.provider);
+            
+            let user_session = Arc::new(crate::session::UserSession {
+                fs: std::sync::Mutex::new(fs),
+                sync_engine,
+            });
+            
+            let session_token = uuid::Uuid::new_v4().to_string();
+            state.sessions.add_session(phone.clone(), session_token.clone(), user_session).await;
+            
+            Ok(Some(session_token))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+#[tauri::command]
+async fn auth_check_password(phone: String, password: String, state: State<'_, Arc<AppState>>) -> Result<String, String> {
+    let mut auth_state = state.sessions.get_auth(&phone).await.ok_or_else(|| "No login session".to_string())?;
+    let token = auth_state.password_token.take().ok_or_else(|| "No password session started".to_string())?;
+    
+    auth_state.provider.check_password(token, &password).await.map_err(|e| e.to_string())?;
+            
+    let db_file = crate::config::get_db_path(&phone);
+    let fs = FileSystem::new_with_db(&db_file).map_err(|e| e.to_string())?;
+    let sync_engine = SyncEngine::new(auth_state.provider);
+    
+    let user_session = Arc::new(crate::session::UserSession {
+        fs: std::sync::Mutex::new(fs),
+        sync_engine,
+    });
+    
+    let session_token = uuid::Uuid::new_v4().to_string();
+    state.sessions.add_session(phone.clone(), session_token.clone(), user_session).await;
+    
+    Ok(session_token)
+}
+
+#[tauri::command]
+async fn list_directory(token: String, path: String, state: State<'_, Arc<AppState>>) -> Result<Vec<Node>, String> {
+    let session = state.sessions.get_session(&token).await.ok_or("Not logged in")?;
     let fs = session.fs.lock().unwrap();
     fs.list(&path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn create_folder(token: String, path: String, state: State<'_, Arc<AppState>>) -> Result<(), String> {
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let session = rt.block_on(async { state.sessions.get_session(&token).await }).ok_or("Not logged in")?;
+async fn create_folder(token: String, path: String, state: State<'_, Arc<AppState>>) -> Result<(), String> {
+    let session = state.sessions.get_session(&token).await.ok_or("Not logged in")?;
     let mut fs = session.fs.lock().unwrap();
     fs.mkdir(&path).map_err(|e| e.to_string()).map(|_| ())
 }
 
 #[tauri::command]
-fn delete_item(token: String, path: String, state: State<'_, Arc<AppState>>) -> Result<(), String> {
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let session = rt.block_on(async { state.sessions.get_session(&token).await }).ok_or("Not logged in")?;
+async fn delete_item(token: String, path: String, state: State<'_, Arc<AppState>>) -> Result<(), String> {
+    let session = state.sessions.get_session(&token).await.ok_or("Not logged in")?;
     let mut fs = session.fs.lock().unwrap();
     fs.delete(&path).map_err(|e| e.to_string())
 }
@@ -174,7 +267,17 @@ fn main() {
 
     tauri::Builder::default()
         .manage(state)
-        .invoke_handler(tauri::generate_handler![list_directory, create_folder, delete_item, upload_physical_file, open_file])
+        .invoke_handler(tauri::generate_handler![
+            list_directory, 
+            create_folder, 
+            delete_item, 
+            upload_physical_file, 
+            open_file,
+            auth_status,
+            auth_send_code,
+            auth_sign_in,
+            auth_check_password
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

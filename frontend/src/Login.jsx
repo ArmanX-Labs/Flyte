@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { getServerUrl, setServerUrl, parseApiResponse, isCapacitor, isTauri } from './api';
+import { 
+  getServerUrl, 
+  setServerUrl, 
+  sendAuthCode, 
+  signIn, 
+  checkPassword, 
+  isCapacitor, 
+  isTauri 
+} from './api';
 import './Login.css';
 
 const Login = ({ onLoginSuccess }) => {
@@ -42,14 +50,8 @@ const Login = ({ onLoginSuccess }) => {
 
     setLoading(true);
     try {
-      const server = getServerUrl();
-      const res = await fetch(`${server}/api/auth/send_code`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone })
-      });
-      const data = await parseApiResponse(res);
-      if (data.token) {
+      const data = await sendAuthCode(phone);
+      if (data && data.token) {
         localStorage.setItem('flyte_token', data.token);
         localStorage.setItem('mycloud_token', data.token);
         onLoginSuccess();
@@ -57,7 +59,7 @@ const Login = ({ onLoginSuccess }) => {
         setStep(2);
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || String(err));
     }
     setLoading(false);
   };
@@ -67,13 +69,7 @@ const Login = ({ onLoginSuccess }) => {
     setError('');
     setLoading(true);
     try {
-      const server = getServerUrl();
-      const res = await fetch(`${server}/api/auth/sign_in`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code })
-      });
-      const tokenOrNull = await parseApiResponse(res);
+      const tokenOrNull = await signIn(phone, code);
       if (tokenOrNull === null) {
         setStep(3);
       } else {
@@ -82,7 +78,7 @@ const Login = ({ onLoginSuccess }) => {
         onLoginSuccess();
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || String(err));
     }
     setLoading(false);
   };
@@ -92,18 +88,12 @@ const Login = ({ onLoginSuccess }) => {
     setError('');
     setLoading(true);
     try {
-      const server = getServerUrl();
-      const res = await fetch(`${server}/api/auth/check_password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, password })
-      });
-      const token = await parseApiResponse(res);
+      const token = await checkPassword(phone, password);
       localStorage.setItem('flyte_token', token);
       localStorage.setItem('mycloud_token', token);
       onLoginSuccess();
     } catch (err) {
-      setError(err.message);
+      setError(err.message || String(err));
     }
     setLoading(false);
   };

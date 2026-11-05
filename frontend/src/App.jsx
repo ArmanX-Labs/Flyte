@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cloud, Folder, File, FileText, FileImage, Trash2, Upload, Plus, ChevronLeft, LogOut } from 'lucide-react';
-import { listDirectory, createFolder, deleteItem, openFile, uploadPhysicalFile, getServerUrl, parseApiResponse } from './api';
+import { listDirectory, createFolder, deleteItem, openFile, uploadPhysicalFile, getServerUrl, checkAuthStatus } from './api';
 import Login from './Login';
 import './App.css';
 
@@ -10,15 +10,15 @@ export default function App() {
   const [currentPath, setCurrentPath] = useState("/");
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     const token = localStorage.getItem('flyte_token') || localStorage.getItem('mycloud_token') || "";
-    fetch(`${getServerUrl()}/api/auth/status`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(parseApiResponse)
-      .then(data => setIsAuthorized(Boolean(data.authorized)))
+    checkAuthStatus(token)
+      .then(authorized => setIsAuthorized(authorized))
       .catch(err => {
         console.error(err);
         setIsAuthorized(false);
@@ -120,33 +120,40 @@ export default function App() {
     }
   };
 
-  const handleCreateFolder = async () => {
-    const name = window.prompt("Folder name:");
-    if (name && name.trim()) {
-      const targetPath = currentPath === "/" ? `/${name}` : `${currentPath}/${name}`;
-      try {
-        await createFolder(targetPath);
-        loadFiles();
-      } catch (e) {
-        alert(e);
-      }
+  const handleCreateFolder = () => {
+    setNewFolderName("");
+    setIsFolderModalOpen(true);
+  };
+
+  const handleConfirmCreateFolder = async (e) => {
+    e.preventDefault();
+    const name = newFolderName.trim();
+    if (!name) return;
+    const targetPath = currentPath === "/" ? `/${name}` : `${currentPath}/${name}`;
+    try {
+      await createFolder(targetPath);
+      setIsFolderModalOpen(false);
+      setNewFolderName("");
+      loadFiles();
+    } catch (err) {
+      alert("Failed to create folder: " + (err.message || err));
     }
   };
 
-  const handleDelete = async (e, file) => {
+  const handleDelete = (e, file) => {
     e.stopPropagation();
-    
-    let confirmed = false;
-    if (window.__TAURI__) {
-       confirmed = await window.__TAURI__.dialog.ask(`Delete ${file.name}?`);
-    } else {
-       confirmed = window.confirm(`Delete ${file.name}?`);
-    }
-    
-    if (confirmed) {
-      const targetPath = currentPath === "/" ? `/${file.name}` : `${currentPath}/${file.name}`;
+    setDeleteTarget(file);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    const targetPath = currentPath === "/" ? `/${deleteTarget.name}` : `${currentPath}/${deleteTarget.name}`;
+    try {
       await deleteItem(targetPath);
+      setDeleteTarget(null);
       loadFiles();
+    } catch (err) {
+      alert("Failed to delete: " + (err.message || err));
     }
   };
 
@@ -248,6 +255,50 @@ export default function App() {
                 </motion.div>
               ))}
             </AnimatePresence>
+          </div>
+        )}
+        {isFolderModalOpen && (
+          <div className="modal-backdrop" onClick={() => setIsFolderModalOpen(false)}>
+            <div className="modal-card" onClick={e => e.stopPropagation()}>
+              <h3>Create New Folder</h3>
+              <form onSubmit={handleConfirmCreateFolder}>
+                <input 
+                  type="text" 
+                  autoFocus 
+                  placeholder="Folder name" 
+                  value={newFolderName} 
+                  onChange={e => setNewFolderName(e.target.value)} 
+                  required 
+                />
+                <div className="modal-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setIsFolderModalOpen(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary">
+                    Create
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {deleteTarget && (
+          <div className="modal-backdrop" onClick={() => setDeleteTarget(null)}>
+            <div className="modal-card" onClick={e => e.stopPropagation()}>
+              <h3>Confirm Delete</h3>
+              <p style={{ color: 'var(--text-secondary)', margin: '12px 0 20px 0', fontSize: '14px' }}>
+                Are you sure you want to delete <strong>{deleteTarget.name}</strong>?
+              </p>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setDeleteTarget(null)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-danger" onClick={handleConfirmDelete}>
+                  Delete
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
