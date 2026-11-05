@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getServerUrl, setServerUrl } from './api';
 import './Login.css';
 
 const Login = ({ onLoginSuccess }) => {
@@ -8,13 +9,15 @@ const Login = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showServerConfig, setShowServerConfig] = useState(false);
+  const [customServer, setCustomServer] = useState(getServerUrl());
 
   const handleSendCode = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/auth/send_code', {
+      const res = await fetch(`${getServerUrl()}/api/auth/send_code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone })
@@ -39,7 +42,7 @@ const Login = ({ onLoginSuccess }) => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/auth/sign_in', {
+      const res = await fetch(`${getServerUrl()}/api/auth/sign_in`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, code })
@@ -64,7 +67,7 @@ const Login = ({ onLoginSuccess }) => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/auth/check_password', {
+      const res = await fetch(`${getServerUrl()}/api/auth/check_password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, password })
@@ -123,6 +126,34 @@ const Login = ({ onLoginSuccess }) => {
             </button>
           </form>
         )}
+
+        <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.85rem' }}>
+          <button 
+            type="button" 
+            onClick={() => setShowServerConfig(!showServerConfig)} 
+            style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            {showServerConfig ? 'Hide Server URL' : 'Custom Server URL'}
+          </button>
+          {showServerConfig && (
+            <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem' }}>
+              <input 
+                type="text" 
+                placeholder="https://your-flyte-server.com" 
+                value={customServer} 
+                onChange={e => setCustomServer(e.target.value)} 
+                style={{ flex: 1, padding: '0.4rem', fontSize: '0.85rem', background: '#111', color: '#fff', border: '1px solid #333', borderRadius: '4px' }} 
+              />
+              <button 
+                type="button" 
+                onClick={() => { setServerUrl(customServer); setShowServerConfig(false); }}
+                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', background: '#333', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                Save
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

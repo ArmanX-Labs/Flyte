@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cloud, Folder, File, FileText, FileImage, Trash2, Upload, Plus, ChevronLeft, LogOut } from 'lucide-react';
-import { listDirectory, createFolder, deleteItem, openFile, uploadPhysicalFile } from './api';
+import { listDirectory, createFolder, deleteItem, openFile, uploadPhysicalFile, getServerUrl } from './api';
 import Login from './Login';
 import './App.css';
 
@@ -14,7 +14,7 @@ export default function App() {
 
   useEffect(() => {
     const token = localStorage.getItem('flyte_token') || localStorage.getItem('mycloud_token') || "";
-    fetch('/api/auth/status', {
+    fetch(`${getServerUrl()}/api/auth/status`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())

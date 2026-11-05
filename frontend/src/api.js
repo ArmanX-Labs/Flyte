@@ -1,4 +1,16 @@
 const isTauri = window.__TAURI__ !== undefined;
+export const getServerUrl = () => localStorage.getItem('flyte_server_url') || "";
+export const setServerUrl = (url) => {
+  if (url) {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://' + url;
+    }
+    url = url.replace(/\/+$/, '');
+    localStorage.setItem('flyte_server_url', url);
+  } else {
+    localStorage.removeItem('flyte_server_url');
+  }
+};
 const getToken = () => localStorage.getItem('flyte_token') || localStorage.getItem('mycloud_token') || "";
 
 export async function listDirectory(path) {
@@ -7,7 +19,7 @@ export async function listDirectory(path) {
     const { invoke } = window.__TAURI__.tauri;
     return await invoke('list_directory', { token, path });
   } else {
-    const res = await fetch(`/api/list?path=${encodeURIComponent(path)}`, {
+    const res = await fetch(`${getServerUrl()}/api/list?path=${encodeURIComponent(path)}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (!res.ok) throw new Error(await res.text());
@@ -21,7 +33,7 @@ export async function createFolder(path) {
     const { invoke } = window.__TAURI__.tauri;
     return await invoke('create_folder', { token, path });
   } else {
-    const res = await fetch('/api/create_folder', {
+    const res = await fetch(`${getServerUrl()}/api/create_folder`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -39,7 +51,7 @@ export async function deleteItem(path) {
     const { invoke } = window.__TAURI__.tauri;
     return await invoke('delete_item', { token, path });
   } else {
-    const res = await fetch('/api/delete', {
+    const res = await fetch(`${getServerUrl()}/api/delete`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -57,10 +69,7 @@ export async function openFile(id, name) {
     const { invoke } = window.__TAURI__.tauri;
     return await invoke('open_file', { token, id, name });
   } else {
-    // For browser downloads we can't easily pass Authorization header in window.open,
-    // so we pass it in query params, or fetch as blob. 
-    // Wait, let's fetch as blob to pass Authorization header!
-    const res = await fetch(`/api/download?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`, {
+    const res = await fetch(`${getServerUrl()}/api/download?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (!res.ok) throw new Error(await res.text());
@@ -88,7 +97,7 @@ export async function uploadPhysicalFile(sourcePath, fileObj, fileName, parentPa
     const formData = new FormData();
     formData.append('parentPath', parentPath);
     formData.append('file', fileObj, fileName);
-    const res = await fetch('/api/upload', {
+    const res = await fetch(`${getServerUrl()}/api/upload`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` },
       body: formData
