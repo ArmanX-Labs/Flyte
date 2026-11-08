@@ -22,6 +22,10 @@ export const getServerUrl = () => {
   const custom = localStorage.getItem('flyte_server_url');
   if (custom) return custom;
 
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_BACKEND_URL) {
+    return import.meta.env.VITE_BACKEND_URL.replace(/\/+$/, '');
+  }
+
   if (isTauri()) {
     // In Tauri desktop, Axum server runs locally on port 3000
     return 'http://127.0.0.1:3000';
